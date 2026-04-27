@@ -1,0 +1,1365 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raiku Nexus - 3D Interactive System</title>
+    
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- MediaPipe Holistic -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/holistic/holistic.js" crossorigin="anonymous"></script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #08080c;
+            font-family: 'Inter', sans-serif;
+            color: #ffffff;
+        }
+
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #ui-container {
+            position: absolute;
+            top: 24px;
+            right: 24px;
+            background: rgba(10, 10, 15, 0.4);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+            z-index: 10;
+            min-width: 250px;
+            transition: all 0.3s ease;
+        }
+
+        .toggle-btn {
+            background: rgba(191, 255, 0, 0.1);
+            color: #bfff00;
+            border: 1px solid #bfff00;
+            padding: 10px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+            width: 100%;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .toggle-btn:hover {
+            background: rgba(191, 255, 0, 0.2);
+            box-shadow: 0 0 10px rgba(191, 255, 0, 0.3);
+        }
+
+        .dropdown-container {
+            position: relative;
+            width: 100%;
+            margin-bottom: 16px;
+        }
+
+        .dropdown-menu {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%;
+            background: rgba(10, 10, 15, 0.85);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(191, 255, 0, 0.3);
+            border-radius: 8px;
+            margin-top: 8px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 20;
+        }
+
+        .dropdown-menu.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .dropdown-item {
+            padding: 12px 16px;
+            color: #e0e0e0;
+            cursor: pointer;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .dropdown-item:last-child {
+            border-bottom: none;
+        }
+
+        .dropdown-item:hover, .dropdown-item.active {
+            background: rgba(191, 255, 0, 0.2);
+            color: #bfff00;
+        }
+
+        /* Volume Slider */
+        .volume-group {
+            margin-top: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .volume-group label {
+            font-size: 0.9rem;
+            color: #e0e0e0;
+            white-space: nowrap;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #bfff00;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(191, 255, 0, 0.5);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #bfff00;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(191, 255, 0, 0.5);
+            border: none;
+        }
+        
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        
+        .header-row h1 {
+            margin: 0;
+        }
+
+        .icon-btn {
+            background: none;
+            border: none;
+            color: #bfff00;
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 0;
+            opacity: 0.7;
+            transition: opacity 0.3s;
+        }
+
+        .icon-btn:hover {
+            opacity: 1;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(191, 255, 0, 0.2);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid #bfff00;
+            color: #bfff00;
+            padding: 12px 24px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.5s ease;
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        .toast.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(-50%) translateY(-10px);
+        }
+
+        /* Secret Message Popup */
+        .secret-message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.5);
+            font-size: 6rem;
+            font-weight: 800;
+            color: #bfff00;
+            text-shadow: 0 0 20px #bfff00, 0 0 40px #bfff00, 0 0 80px #bfff00;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 1000;
+            pointer-events: none;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        .secret-message.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        .secret-message img {
+            max-width: 300px;
+            filter: drop-shadow(0 0 20px #bfff00);
+        }
+
+        /* Intro Overlay */
+        #intro-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+            z-index: 50;
+            pointer-events: none;
+            transition: opacity 1.5s ease-in-out;
+            width: 100%;
+        }
+
+        #intro-logo {
+            width: 220px;
+            height: auto;
+            opacity: 0;
+            animation: epicReveal 2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            filter: drop-shadow(0 0 15px rgba(191, 255, 0, 0.4));
+        }
+
+        @keyframes epicReveal {
+            0% { 
+                opacity: 0; 
+                transform: scale(3) rotate(-10deg); 
+                filter: blur(30px) brightness(2) drop-shadow(0 0 0 #bfff00);
+            }
+            30% { 
+                opacity: 1; 
+                transform: scale(0.9) rotate(5deg); 
+                filter: blur(0px) brightness(1.5) drop-shadow(0 0 50px #bfff00);
+            }
+            50% { 
+                transform: scale(1.05) rotate(-2deg); 
+            }
+            100% { 
+                opacity: 1; 
+                transform: scale(1) rotate(0deg); 
+                filter: blur(0px) brightness(1) drop-shadow(0 0 15px rgba(191, 255, 0, 0.4));
+            }
+        }
+        
+        .intro-title {
+            font-family: 'Caveat', cursive;
+            font-size: 5rem;
+            color: #bfff00;
+            text-shadow: 0 0 15px rgba(191, 255, 0, 0.4);
+            margin: 0;
+            display: block;
+            width: 100%;
+            text-align: center;
+            line-height: 1.1;
+        }
+
+        .intro-title::after {
+            content: '|';
+            animation: blink 0.7s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        /* Intro Mode UI Hiding */
+        body.intro-active canvas,
+        body.intro-active #ui-container,
+        body.intro-active #social-container,
+        body.intro-active #clock-container {
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+
+        canvas, #ui-container, #social-container, #clock-container {
+            transition: opacity 1.5s ease-in-out;
+        }
+
+        /* Clock Container */
+        #clock-container {
+            position: absolute;
+            bottom: 24px;
+            left: 24px;
+            background: rgba(10, 10, 15, 0.4);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 12px 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+            color: #bfff00;
+            font-size: 1.2rem;
+            font-weight: 600;
+            letter-spacing: 2px;
+            z-index: 10;
+            transition: all 0.3s ease;
+        }
+
+        /* Social Contact Bar */
+        #social-container {
+            position: absolute;
+            bottom: 24px;
+            right: 24px;
+            background: rgba(10, 10, 15, 0.4);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 12px 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+            display: flex;
+            gap: 16px;
+            z-index: 10;
+            transition: all 0.3s ease;
+        }
+
+        .social-icon {
+            color: #bfff00;
+            width: 24px;
+            height: 24px;
+            opacity: 0.7;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .social-icon:hover {
+            opacity: 1;
+            transform: scale(1.1);
+            filter: drop-shadow(0 0 8px rgba(191, 255, 0, 0.5));
+        }
+
+        @media (max-width: 768px) {
+            #intro-logo {
+                width: 160px;
+            }
+            .intro-title {
+                font-size: 3rem;
+            }
+            #ui-container {
+                top: auto;
+                bottom: 24px;
+                right: 50%;
+                transform: translateX(50%);
+                width: calc(100vw - 48px);
+                padding: 16px;
+                min-width: auto;
+            }
+            h1 {
+                font-size: 1.1rem;
+            }
+            .control-group {
+                padding: 8px 12px;
+                margin-bottom: 12px;
+            }
+            #social-container {
+                top: 24px;
+                bottom: auto;
+                right: 24px;
+                padding: 10px 16px;
+                gap: 12px;
+            }
+            #clock-container {
+                top: 24px;
+                bottom: auto;
+                left: 24px;
+                padding: 10px 16px;
+                font-size: 1rem;
+            }
+        }
+
+        h1 {
+            margin: 0 0 16px 0;
+            font-size: 1.25rem;
+            font-weight: 600;
+            background: linear-gradient(90deg, #bfff00, #55cc00);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 12px 16px;
+            border-radius: 8px;
+        }
+
+        .control-group label {
+            font-size: 0.95rem;
+            color: #e0e0e0;
+        }
+
+        input[type="color"] {
+            appearance: none;
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            overflow: hidden;
+            background: none;
+            padding: 0;
+        }
+
+        input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+
+        input[type="color"]::-webkit-color-swatch {
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            box-sizing: border-box;
+        }
+
+        #status-card {
+            background: rgba(191, 255, 0, 0.1);
+            border-left: 4px solid #bfff00;
+            padding: 12px 16px;
+            border-radius: 0 8px 8px 0;
+            font-size: 0.85rem;
+            color: #e6ffb0;
+            line-height: 1.5;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid rgba(191, 255, 0, 0.3);
+            border-radius: 50%;
+            border-top-color: #bfff00;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        video {
+            display: none;
+        }
+
+        /* Overlay for video debug (optional, keeping it hidden) */
+        #debug-canvas {
+            position: absolute;
+            bottom: 24px;
+            right: 24px;
+            width: 160px;
+            height: 120px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.1);
+            display: none; /* Set to block if you want to see camera view */
+            z-index: 10;
+            transform: scaleX(-1);
+        }
+    </style>
+</head>
+<body class="intro-active">
+    <audio id="bgmPlayer" loop></audio>
+    <video id="videoElement"></video>
+    <canvas id="debug-canvas"></canvas>
+
+    <div id="toastMessage" class="toast">Press Space or tap screen to show UI</div>
+    <div id="secretMessage" class="secret-message"></div>
+
+    <div id="intro-overlay">
+        <img id="intro-logo" src="img/Raiku icon classic.png" alt="Raiku Logo">
+        <h2 id="intro-title" class="intro-title"></h2>
+    </div>
+
+    <div id="ui-container">
+        <div class="header-row">
+            <h1>Raiku Nexus</h1>
+            <button id="hideUiBtn" class="icon-btn" title="Hide UI">👁️‍🗨️</button>
+        </div>
+        
+        <div class="dropdown-container">
+            <button id="modeSelectBtn" class="toggle-btn">Mode: Manual <span>▼</span></button>
+            <div id="modeMenu" class="dropdown-menu">
+                <div class="dropdown-item active" data-mode="manual">Manual (Hand Interaction)</div>
+                <div class="dropdown-item" data-mode="waves">Auto: Waves</div>
+                <div class="dropdown-item" data-mode="hologram">Auto: Hologram</div>
+                <div class="dropdown-item" data-mode="galaxy">Auto: Galaxy</div>
+                <div class="dropdown-item" data-mode="blackhole">Auto: Black Hole</div>
+                <div class="dropdown-item" data-mode="rain">Auto: Rain</div>
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <label for="colorPicker">Particle Color</label>
+            <input type="color" id="colorPicker" value="#bfff00">
+        </div>
+        
+        <div class="control-group" style="margin-bottom: 0;">
+            <label for="imageUpload">Image (Logo)</label>
+            <input type="file" id="imageUpload" accept="image/*" style="display:none;">
+            <button onclick="document.getElementById('imageUpload').click()" style="background:#bfff00; color:#000; border:none; padding:8px 12px; border-radius:4px; cursor:pointer; font-weight:600; font-size: 0.85rem;">Upload Image</button>
+        </div>
+
+        <div class="volume-group" style="margin-bottom: 16px;">
+            <label>Volume</label>
+            <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="1">
+        </div>
+
+        <div id="status-card">
+            <span class="spinner" id="spinner"></span>
+            <span id="status">Loading camera and AI model...</span>
+        </div>
+    </div>
+
+    <!-- Social Contact Bar -->
+    <div id="social-container">
+        <!-- Web -->
+        <a href="https://www.raiku.com/" class="social-icon" target="_blank" title="Website">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+        </a>
+        <!-- X -->
+        <a href="https://x.com/raikucom" class="social-icon" target="_blank" title="X (Twitter)">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+        </a>
+        <!-- Discord -->
+        <a href="https://discord.gg/raikucom" class="social-icon" target="_blank" title="Discord">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
+        </a>
+        <!-- LinkedIn -->
+        <a href="https://www.linkedin.com/company/raikucom/" class="social-icon" target="_blank" title="LinkedIn">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+        </a>
+        <!-- Telegram -->
+        <a href="https://t.me/raikucom" class="social-icon" target="_blank" title="Telegram">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.888-.662 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+        </a>
+    </div>
+
+    <!-- Clock Container -->
+    <div id="clock-container">
+        <span id="local-time">--:--:--</span>
+    </div>
+
+    <script>
+        // --- Three.js Setup ---
+        const scene = new THREE.Scene();
+        // Add subtle fog for depth
+        scene.fog = new THREE.FogExp2(0x08080c, 0.05);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 4;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.body.appendChild(renderer.domElement);
+
+        // Resize handler
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // --- Particle System ---
+        const particleCount = 12000; // Increased for better detail
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(particleCount * 3);
+        const basePositions = new Float32Array(particleCount * 3);
+        const randoms = new Float32Array(particleCount * 3);
+
+        for (let i = 0; i < particleCount; i++) {
+            positions[i * 3] = 0;
+            positions[i * 3 + 1] = 0;
+            positions[i * 3 + 2] = 0;
+            basePositions[i * 3] = 0;
+            basePositions[i * 3 + 1] = 0;
+            basePositions[i * 3 + 2] = 0;
+            randoms[i * 3] = (Math.random() - 0.5) * 10;
+            randoms[i * 3 + 1] = (Math.random() - 0.5) * 10;
+            randoms[i * 3 + 2] = (Math.random() - 0.5) * 10;
+        }
+
+        function processImageData(imgData, width, height) {
+            const validPixels = [];
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const index = (y * width + x) * 4;
+                    const r = imgData.data[index];
+                    const g = imgData.data[index + 1];
+                    const b = imgData.data[index + 2];
+                    const a = imgData.data[index + 3];
+                    
+                    if (a > 50) {
+                        if (r > 240 && g > 240 && b > 240) continue;
+                        if (r < 15 && g < 15 && b < 15) continue;
+                        validPixels.push({ x: x, y: y });
+                    }
+                }
+            }
+
+            if (validPixels.length === 0) return;
+
+            let minX = width, maxX = 0, minY = height, maxY = 0;
+            validPixels.forEach(p => {
+                if(p.x < minX) minX = p.x;
+                if(p.x > maxX) maxX = p.x;
+                if(p.y < minY) minY = p.y;
+                if(p.y > maxY) maxY = p.y;
+            });
+
+            const boxWidth = maxX - minX;
+            const boxHeight = maxY - minY;
+            const centerX = minX + boxWidth / 2;
+            const centerY = minY + boxHeight / 2;
+
+            for (let i = 0; i < particleCount; i++) {
+                const pixel = validPixels[Math.floor(Math.random() * validPixels.length)];
+                
+                const scale = 4.0 / Math.max(boxWidth, boxHeight);
+                const normalizedX = (pixel.x - centerX) * scale;
+                const normalizedY = -(pixel.y - centerY) * scale;
+                
+                const noiseX = (Math.random() - 0.5) * scale * 0.8;
+                const noiseY = (Math.random() - 0.5) * scale * 0.8;
+                const z = (Math.random() - 0.5) * 0.3;
+
+                basePositions[i * 3] = normalizedX + noiseX;
+                basePositions[i * 3 + 1] = normalizedY + noiseY;
+                basePositions[i * 3 + 2] = z;
+            }
+        }
+
+        function createDefaultShape() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 200;
+            canvas.height = 200;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, 200, 200);
+            ctx.fillStyle = '#bfff00';
+            ctx.font = 'bold 160px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('R', 100, 100);
+            
+            processImageData(ctx.getImageData(0, 0, 200, 200), 200, 200);
+        }
+
+        function createParticlesFromImage(imageSource) {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const maxDim = 300;
+                let width = img.width;
+                let height = img.height;
+                
+                if (width > maxDim || height > maxDim) {
+                    if (width > height) {
+                        height = (height / width) * maxDim;
+                        width = maxDim;
+                    } else {
+                        width = (width / height) * maxDim;
+                        height = maxDim;
+                    }
+                }
+                
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                
+                ctx.clearRect(0, 0, width, height);
+                ctx.drawImage(img, 0, 0, width, height);
+
+                try {
+                    const imgData = ctx.getImageData(0, 0, width, height);
+                    processImageData(imgData, width, height);
+                } catch (e) {
+                    console.warn("CORS error reading image, falling back to default shape.");
+                    createDefaultShape();
+                }
+            };
+            img.onerror = () => {
+                console.warn("Could not load image, falling back to default shape.");
+                createDefaultShape();
+            };
+            img.src = imageSource;
+        }
+
+        const defaultLogoBase64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAiwAAAEoCAYAAAB7DqpiAAAACXBIWXMAAAsTAAALEwEAmpwYAAAFyWlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgOS4xLWMwMDIgNzkuZjM1NGVmYywgMjAyMy8xMS8wOS0xMjo0MDoyNyAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RFdnQ9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZUV2ZW50IyIgeG1sbnM6ZGM9Imh0dHA6Ly9wdXJsLm9yZy9kYy9lbGVtZW50cy8xLjEvIiB4bWxuczpwaG90b3Nob3A9Imh0dHA6Ly9ucy5hZG9iZS5jb20vcGhvdG9zaG9wLzEuMC8iIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIDI1LjUgKFdpbmRvd3MpIiB4bXA6Q3JlYXRlRGF0ZT0iMjAyNi0wMi0wNFQxODo0MjoyMCswMjowMCIgeG1wOk1ldGFkYXRhRGF0ZT0iMjAyNi0wMi0wNFQxODo0MjoyMCswMjowMCIgeG1wOk1vZGlmeURhdGU9IjIwMjYtMDItMDRUMTg6NDI6MjArMDI6MDAiIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6YWI3MTJhZWItZGQwMC1kOTQwLTk4OGItMTc4NzcxNGIxNjU1IiB4bXBNTTpEb2N1bWVudElEPSJhZG9iZTpkb2NpZDpwaG90b3Nob3A6ZDBjNzUyMDMtOTJiNi0zZDQ3LWI1MjMt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";
+
+        createParticlesFromImage(defaultLogoBase64);
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+        // Use a nice glowing material
+        // We create a canvas-based circular texture for softer particles
+        const canvasTexture = document.createElement('canvas');
+        canvasTexture.width = 32;
+        canvasTexture.height = 32;
+        const ctx = canvasTexture.getContext('2d');
+        const gradient = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+        gradient.addColorStop(0, 'rgba(255,255,255,1)');
+        gradient.addColorStop(0.3, 'rgba(255,255,255,0.8)');
+        gradient.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 32, 32);
+        const texture = new THREE.CanvasTexture(canvasTexture);
+
+        const material = new THREE.PointsMaterial({
+            color: 0xbfff00,
+            size: 0.06,
+            map: texture,
+            transparent: true,
+            opacity: 0.8,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+
+        const particles = new THREE.Points(geometry, material);
+        scene.add(particles);
+
+        // --- Interaction State ---
+        let currentExpansion = 0;
+        let targetExpansion = 0;
+
+        // --- Auto Mode State ---
+        let autoModeActive = false;
+        let autoModeTimer = 0;
+        let currentPatternIndex = 0;
+        const patterns = ['waves', 'hologram', 'galaxy', 'blackhole', 'rain'];
+        const patternNames = ['Waves', 'Hologram', 'Galaxy', 'Black Hole', 'Rain'];
+        const bgmPlayer = document.getElementById('bgmPlayer');
+        
+        const patternAudios = {
+            'manual': 'bgm/manual.mp3',
+            'waves': 'bgm/wave.mp3',
+            'hologram': 'bgm/hologram.mp3',
+            'galaxy': 'bgm/galaxy.mp3',
+            'blackhole': 'bgm/blackhole.mp3',
+            'rain': 'bgm/rain.mp3'
+        };
+
+        let targetVolume = 1;
+        const volumeSlider = document.getElementById('volumeSlider');
+        
+        volumeSlider.addEventListener('input', (e) => {
+            targetVolume = parseFloat(e.target.value);
+            bgmPlayer.volume = targetVolume;
+        });
+
+        function playBGM(pattern) {
+            if (!bgmPlayer) return;
+            let nextSrc = patternAudios[pattern];
+            if (!nextSrc) nextSrc = 'bgm/manual.mp3';
+            
+            let vol = bgmPlayer.volume;
+            const fadeOut = setInterval(() => {
+                if (vol > 0.05) {
+                    vol -= 0.05;
+                    bgmPlayer.volume = vol;
+                } else {
+                    clearInterval(fadeOut);
+                    bgmPlayer.src = nextSrc;
+                    bgmPlayer.volume = 0;
+                    
+                    bgmPlayer.play().catch(e => console.log("BGM Error or Not Found:", e.message));
+                    
+                    const fadeIn = setInterval(() => {
+                        if (vol < targetVolume - 0.05) {
+                            vol += 0.05;
+                            bgmPlayer.volume = vol;
+                        } else {
+                            bgmPlayer.volume = targetVolume;
+                            clearInterval(fadeIn);
+                        }
+                    }, 100);
+                }
+            }, 100);
+        }
+
+        const modeSelectBtn = document.getElementById('modeSelectBtn');
+        const modeMenu = document.getElementById('modeMenu');
+        const dropdownItems = document.querySelectorAll('.dropdown-item');
+
+        modeSelectBtn.addEventListener('click', () => {
+            modeMenu.classList.toggle('show');
+        });
+
+        // Đóng menu khi click ra ngoài
+        document.addEventListener('click', (e) => {
+            if (!modeSelectBtn.contains(e.target) && !modeMenu.contains(e.target)) {
+                modeMenu.classList.remove('show');
+            }
+        });
+
+        dropdownItems.forEach(item => {
+            item.addEventListener('click', () => {
+                dropdownItems.forEach(i => i.classList.remove('active'));
+                item.classList.add('active');
+                
+                const mode = item.dataset.mode;
+                
+                if (mode === 'manual') {
+                    autoModeActive = false;
+                    modeSelectBtn.innerHTML = 'Mode: Manual <span>▼</span>';
+                    playBGM('manual');
+                } else {
+                    autoModeActive = true;
+                    currentPatternIndex = patterns.indexOf(mode);
+                    autoModeTimer = 0; 
+                    
+                    const patternName = patternNames[currentPatternIndex];
+                    modeSelectBtn.innerHTML = `Mode: ${patternName} <span>▼</span>`;
+                    
+                    playBGM(mode);
+                }
+                
+                modeMenu.classList.remove('show');
+            });
+        });
+
+        // UI Listeners
+        const colorPicker = document.getElementById('colorPicker');
+        colorPicker.addEventListener('input', (e) => {
+            material.color.set(e.target.value);
+        });
+
+        const imageUpload = document.getElementById('imageUpload');
+        imageUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    createParticlesFromImage(event.target.result);
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        const uiContainer = document.getElementById('ui-container');
+        const socialContainer = document.getElementById('social-container');
+        const clockContainer = document.getElementById('clock-container');
+        const hideUiBtn = document.getElementById('hideUiBtn');
+        const toastMessage = document.getElementById('toastMessage');
+        let uiHidden = false;
+
+        function showUI() {
+            if (!uiHidden) return;
+            uiHidden = false;
+            uiContainer.style.opacity = '1';
+            uiContainer.style.pointerEvents = 'auto';
+            if (socialContainer) {
+                socialContainer.style.opacity = '1';
+                socialContainer.style.pointerEvents = 'auto';
+            }
+            if (clockContainer) {
+                clockContainer.style.opacity = '1';
+            }
+        }
+
+        function hideUI() {
+            uiHidden = true;
+            uiContainer.style.opacity = '0';
+            uiContainer.style.pointerEvents = 'none';
+            if (socialContainer) {
+                socialContainer.style.opacity = '0';
+                socialContainer.style.pointerEvents = 'none';
+            }
+            if (clockContainer) {
+                clockContainer.style.opacity = '0';
+            }
+            // Show toast
+            toastMessage.classList.add('show');
+            setTimeout(() => {
+                toastMessage.classList.remove('show');
+            }, 3000);
+        }
+
+        hideUiBtn.addEventListener('click', hideUI);
+
+        // Listen for spacebar or screen tap to show UI
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                showUI();
+            }
+        });
+        
+        window.addEventListener('pointerdown', (e) => {
+            if (uiHidden) {
+                showUI();
+            }
+        });
+
+        // Clock Script
+        const clockEl = document.getElementById('local-time');
+        function updateClock() {
+            if (clockEl) {
+                const now = new Date();
+                clockEl.innerText = now.toLocaleTimeString('en-US', { hour12: false });
+            }
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        const statusEl = document.getElementById('status');
+        const spinner = document.getElementById('spinner');
+
+        // --- Math & Secret Gestures ---
+        function getDistance(p1, p2) {
+            return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+        }
+
+        let isMessageShowing = false;
+        const secretMessageEl = document.getElementById('secretMessage');
+        
+        let currentGesture = null;
+        let gestureHoldTimer = 0;
+        const GESTURE_HOLD_TIME = 500; // 0.5 seconds
+        let lastDetectTime = Date.now();
+
+        function triggerSecret(msg) {
+            if (isMessageShowing) return;
+            isMessageShowing = true;
+            
+            secretMessageEl.innerText = msg;
+            secretMessageEl.classList.add('show');
+            
+            setTimeout(() => {
+                secretMessageEl.classList.remove('show');
+                setTimeout(() => { 
+                    isMessageShowing = false; 
+                    currentGesture = null;
+                    gestureHoldTimer = 0;
+                }, 2000); // 2s cooldown
+            }, 5000);
+        }
+
+        function detectGestures(results) {
+            if (isMessageShowing || autoModeActive) {
+                lastDetectTime = Date.now();
+                return;
+            }
+
+            const now = Date.now();
+            const delta = now - lastDetectTime;
+            lastDetectTime = now;
+
+            const rightHand = results.rightHandLandmarks;
+            const leftHand = results.leftHandLandmarks;
+            const pose = results.poseLandmarks;
+            const face = results.faceLandmarks;
+
+            let hand = rightHand || leftHand;
+            let detectedThisFrame = null;
+
+            // 1. Hand Gestures
+            if (hand) {
+                const palm = hand[0];
+                const thumbTip = hand[4];
+                const indexTip = hand[8];
+                const middleTip = hand[12];
+                const ringTip = hand[16];
+                const pinkyTip = hand[20];
+
+                const isIndexFolded = getDistance(indexTip, palm) < 0.2;
+                const isMiddleFolded = getDistance(middleTip, palm) < 0.2;
+                const isRingFolded = getDistance(ringTip, palm) < 0.2;
+                const isPinkyFolded = getDistance(pinkyTip, palm) < 0.2;
+
+                // Thumbs up
+                if (thumbTip.y < indexTip.y && isIndexFolded && isMiddleFolded && isRingFolded && isPinkyFolded) {
+                    detectedThisFrame = "Hello Chad";
+                }
+                // Middle finger
+                else if (!isMiddleFolded && isIndexFolded && isRingFolded && isPinkyFolded) {
+                    detectedThisFrame = "🖕"; 
+                }
+            }
+
+            // 2. Pose Gestures
+            if (!detectedThisFrame && pose) {
+                const leftAnkle = pose[27];
+                const rightAnkle = pose[28];
+                if ((leftAnkle && leftAnkle.visibility > 0.5 && leftAnkle.y < 0.7) || 
+                    (rightAnkle && rightAnkle.visibility > 0.5 && rightAnkle.y < 0.7)) {
+                    detectedThisFrame = "hello Mic";
+                } else {
+                    const rightWrist = pose[16];
+                    const rightEye = pose[5]; 
+                    if (rightWrist && rightEye && rightWrist.visibility > 0.5 && rightEye.visibility > 0.5) {
+                        const distToEye = getDistance(rightWrist, rightEye);
+                        if (distToEye < 0.2 && hand) { 
+                            detectedThisFrame = "GRaiku";
+                        }
+                    }
+                    if (!detectedThisFrame) {
+                        const mouthLeft = pose[9];
+                        const mouthRight = pose[10];
+                        if (hand && mouthLeft && mouthRight && hand[8]) {
+                            const distToMouthL = getDistance(hand[8], mouthLeft);
+                            const distToMouthR = getDistance(hand[8], mouthRight);
+                            if (distToMouthL < 0.1 || distToMouthR < 0.1) {
+                                detectedThisFrame = "You're Dak right?";
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. Face Gestures
+            if (!detectedThisFrame && face) {
+                const getEAR = (pTop, pBot, pLeft, pRight) => {
+                    const vert = getDistance(pTop, pBot);
+                    const horiz = getDistance(pLeft, pRight);
+                    return vert / horiz;
+                };
+                
+                const leftEAR = getEAR(face[159], face[145], face[33], face[133]);
+                const rightEAR = getEAR(face[386], face[374], face[362], face[263]);
+                
+                if (leftEAR < 0.18 && rightEAR < 0.18) {
+                    detectedThisFrame = "Goodnight Chad";
+                } else {
+                    const mouthWidth = getDistance(face[61], face[291]);
+                    if (mouthWidth < 0.05) { 
+                        detectedThisFrame = "I love you";
+                    }
+                }
+            }
+
+            // Check hold timer
+            if (detectedThisFrame) {
+                if (currentGesture === detectedThisFrame) {
+                    gestureHoldTimer += delta;
+                    if (gestureHoldTimer >= GESTURE_HOLD_TIME) {
+                        triggerSecret(detectedThisFrame);
+                    }
+                } else {
+                    currentGesture = detectedThisFrame;
+                    gestureHoldTimer = 0;
+                }
+            } else {
+                currentGesture = null;
+                gestureHoldTimer = 0;
+            }
+        }
+
+        // --- MediaPipe Holistic Setup ---
+        const videoElement = document.getElementById('videoElement');
+
+        function onResults(results) {
+            // Hide spinner once we get first results
+            if (spinner.style.display !== 'none') {
+                spinner.style.display = 'none';
+            }
+
+            // Expand particles logic (1 hand needed)
+            const activeHand = results.rightHandLandmarks || results.leftHandLandmarks;
+
+            if (activeHand) {
+                statusEl.innerText = "Hand detected.\nOpen/close hand to control particles.";
+                
+                // Use thumb (4) and pinky (20) to calculate hand span
+                const p1 = activeHand[4];
+                const p2 = activeHand[20];
+
+                const dx = p1.x - p2.x;
+                const dy = p1.y - p2.y;
+                const dz = p1.z - p2.z;
+                const distance = Math.sqrt(dx*dx + dy*dy + dz*dz);
+
+                // Adjust based on normal span (0.1 to 0.4)
+                const baseDist = 0.1;
+                let normalizedDist = Math.max(0, distance - baseDist) * 5;
+                
+                targetExpansion = normalizedDist;
+            } else {
+                statusEl.innerText = "Please bring 1 hand into the frame to interact.";
+                targetExpansion = 0;
+            }
+
+            // Secret Gestures Detection
+            if (!autoModeActive) {
+                detectGestures(results);
+            }
+        }
+
+        const holistic = new Holistic({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${file}`;
+        }});
+        
+        holistic.setOptions({
+            modelComplexity: 0,
+            smoothLandmarks: true,
+            enableSegmentation: false,
+            smoothSegmentation: true,
+            refineFaceLandmarks: true,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+        
+        holistic.onResults(onResults);
+
+        const cameraUtils = new Camera(videoElement, {
+            onFrame: async () => {
+                await holistic.send({image: videoElement});
+            },
+            width: 640,
+            height: 480
+        });
+
+        // Start camera
+        cameraUtils.start()
+            .then(() => {
+                statusEl.innerText = "Camera started. Initializing model...";
+            })
+            .catch((err) => {
+                spinner.style.display = 'none';
+                statusEl.innerText = "Error: Cannot access camera. Please grant permission.";
+                console.error(err);
+            });
+
+        // --- Animation Loop ---
+        const clock = new THREE.Clock();
+
+        let lastTime = 0;
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const elapsedTime = clock.getElapsedTime();
+            const delta = elapsedTime - lastTime;
+            lastTime = elapsedTime;
+
+            const positionAttribute = geometry.attributes.position;
+            const posArray = positionAttribute.array;
+
+            if (autoModeActive) {
+                autoModeTimer += delta;
+                
+                if (autoModeTimer >= 60) {
+                    autoModeTimer = 0;
+                    // Chu kỳ lặp lại cho duy nhất quy luật hiện tại
+                }
+
+                let patternWeight = 0;
+                if (autoModeTimer > 2 && autoModeTimer <= 4) {
+                    patternWeight = (autoModeTimer - 2) / 2; // Fade in
+                } else if (autoModeTimer > 4 && autoModeTimer <= 58) {
+                    patternWeight = 1; // Full pattern
+                } else if (autoModeTimer > 58 && autoModeTimer <= 60) {
+                    patternWeight = 1 - ((autoModeTimer - 58) / 2); // Fade out
+                } else {
+                    patternWeight = 0; // Logo
+                }
+
+                const pattern = patterns[currentPatternIndex];
+
+                for (let i = 0; i < particleCount; i++) {
+                    const basex = basePositions[i * 3];
+                    const basey = basePositions[i * 3 + 1];
+                    const basez = basePositions[i * 3 + 2];
+                    const randx = randoms[i * 3];
+                    const randy = randoms[i * 3 + 1];
+                    const randz = randoms[i * 3 + 2];
+
+                    let px = basex, py = basey, pz = basez;
+
+                    if (patternWeight > 0) {
+                        let ptx = basex, pty = basey, ptz = basez;
+                        
+                        if (pattern === 'waves') {
+                            const gridX = (i % 100) / 100 * 10 - 5;
+                            const gridZ = Math.floor(i / 100) / 100 * 10 - 5;
+                            ptx = gridX;
+                            ptz = gridZ;
+                            pty = Math.sin(gridX * 2 + elapsedTime * 3) * 0.5 + Math.cos(gridZ * 2 + elapsedTime * 2) * 0.5;
+                        } else if (pattern === 'hologram') {
+                            // Dòng chảy xoắn ốc (Spiral Waterfall)
+                            const flowY = 5 - ((elapsedTime * 3 + i * 0.01) % 10);
+                            const angle = flowY * 2 + elapsedTime * 2; 
+                            const radius = 1.5 + Math.sin(elapsedTime * 2 + i * 0.1) * 0.5;
+                            ptx = Math.cos(angle) * radius;
+                            pty = flowY;
+                            ptz = Math.sin(angle) * radius;
+                        } else if (pattern === 'galaxy') {
+                            const radius = Math.sqrt(basex * basex + basey * basey + basez * basez) * 2 + 0.5;
+                            const angle = Math.atan2(basey, basex) + elapsedTime + radius * 0.5;
+                            ptx = Math.cos(angle) * radius;
+                            pty = (basez + randz) * 0.2;
+                            ptz = Math.sin(angle) * radius;
+                        } else if (pattern === 'blackhole') {
+                            // Hyperspace / Escape Space
+                            const speed = 15;
+                            const angle = (randx + 0.5) * Math.PI * 2;
+                            const radius = 0.5 + Math.abs(randy) * 5; 
+                            ptx = Math.cos(angle) * radius;
+                            pty = Math.sin(angle) * radius;
+                            
+                            // Bay thẳng vào camera (trục Z)
+                            ptz = ((randz * 20 + elapsedTime * speed * (1 + radius)) % 20) - 10;
+                        } else if (pattern === 'rain') {
+                            ptx = randx * 1.5;
+                            ptz = randz * 1.5;
+                            pty = 5 - ((elapsedTime * 4 + i * 0.02) % 10);
+                        }
+
+                        // Apply smooth transitions using easeInOut
+                        const easeWeight = patternWeight < 0.5 ? 2 * patternWeight * patternWeight : 1 - Math.pow(-2 * patternWeight + 2, 2) / 2;
+                        
+                        px = basex * (1 - easeWeight) + ptx * easeWeight;
+                        py = basey * (1 - easeWeight) + pty * easeWeight;
+                        pz = basez * (1 - easeWeight) + ptz * easeWeight;
+                    }
+
+                    const breathing = Math.sin(elapsedTime * 2 + basex) * 0.02;
+                    let finalX = px + px * breathing;
+                    let finalY = py + py * breathing;
+                    let finalZ = pz + pz * breathing;
+
+                    posArray[i * 3]     = finalX;
+                    posArray[i * 3 + 1] = finalY;
+                    posArray[i * 3 + 2] = finalZ;
+                }
+
+                // Auto rotate camera slowly in auto mode
+                particles.rotation.y = elapsedTime * 0.1;
+                particles.rotation.x = Math.sin(elapsedTime * 0.05) * 0.2;
+
+                material.opacity = 0.8;
+
+            } else {
+                // Manual Mode
+                currentExpansion += (targetExpansion - currentExpansion) * 0.08;
+
+                for (let i = 0; i < particleCount; i++) {
+                    const basex = basePositions[i * 3];
+                    const basey = basePositions[i * 3 + 1];
+                    const basez = basePositions[i * 3 + 2];
+
+                    const randx = randoms[i * 3];
+                    const randy = randoms[i * 3 + 1];
+                    const randz = randoms[i * 3 + 2];
+
+                    const breathing = Math.sin(elapsedTime * 2 + basex) * 0.02;
+
+                    const scale = 1 + currentExpansion * 1.5;
+                    const scatter = currentExpansion * 1.5;
+
+                    let finalX = basex * scale + randx * scatter + basex * breathing;
+                    let finalY = basey * scale + randy * scatter + basey * breathing;
+                    let finalZ = basez * scale + randz * scatter + basez * breathing;
+
+                    posArray[i * 3]     = finalX;
+                    posArray[i * 3 + 1] = finalY;
+                    posArray[i * 3 + 2] = finalZ;
+                }
+
+                particles.rotation.y += 0.002;
+                particles.rotation.x += 0.001;
+
+                if (currentExpansion > 0.5) {
+                    material.opacity = 0.8 + Math.sin(elapsedTime * 10) * 0.2;
+                } else {
+                    material.opacity = 0.8;
+                }
+            }
+            
+            if (isMessageShowing) {
+                particles.visible = false;
+            } else {
+                particles.visible = true;
+            }
+
+            positionAttribute.needsUpdate = true;
+            renderer.render(scene, camera);
+        }
+
+        // Typewriter Effect
+        const textToType = "Raiku makes\nSolana inevitable";
+        const introTitleEl = document.getElementById('intro-title');
+        let typeIndex = 0;
+        
+        function typeWriter() {
+            if (typeIndex < textToType.length) {
+                if (textToType.charAt(typeIndex) === '\n') {
+                    introTitleEl.innerHTML += '<br>';
+                } else {
+                    introTitleEl.innerHTML += textToType.charAt(typeIndex);
+                }
+                typeIndex++;
+                setTimeout(typeWriter, 80); 
+            } else {
+                setTimeout(() => {
+                    const overlay = document.getElementById('intro-overlay');
+                    if (overlay) overlay.style.opacity = '0';
+                    document.body.classList.remove('intro-active');
+                }, 2000);
+            }
+        }
+        // Start typing slightly after logo fades in
+        setTimeout(typeWriter, 1200);
+
+        animate();
+    </script>
+</body>
+</html>
