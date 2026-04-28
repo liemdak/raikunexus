@@ -365,7 +365,7 @@
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
             display: flex;
             gap: 16px;
-            z-index: 10;
+            z-index: 100;
             transition: all 0.3s ease;
         }
 
@@ -415,6 +415,8 @@
                 right: 24px;
                 padding: 10px 16px;
                 gap: 12px;
+                position: fixed;
+                z-index: 100;
             }
             #clock-container {
                 top: 24px;
@@ -481,6 +483,18 @@
             line-height: 1.5;
         }
 
+        .manual-item {
+            background: linear-gradient(90deg, #ff416c, #ff4b2b);
+            color: #ffffff !important;
+            font-weight: 600;
+            margin-top: 8px;
+            border-radius: 6px;
+        }
+        .manual-item:hover {
+            background: linear-gradient(90deg, #ff4b2b, #ff416c) !important;
+            color: #ffffff !important;
+        }
+
         .spinner {
             display: inline-block;
             width: 12px;
@@ -537,14 +551,16 @@
         </div>
         
         <div class="dropdown-container">
-            <button id="modeSelectBtn" class="toggle-btn">Mode: Manual <span>▼</span></button>
+            <button id="modeSelectBtn" class="toggle-btn">Mode: Auto: Waves <span>▼</span></button>
             <div id="modeMenu" class="dropdown-menu">
-                <div class="dropdown-item active" data-mode="manual">Manual (Hand Interaction)</div>
-                <div class="dropdown-item" data-mode="waves">Auto: Waves</div>
+                <div class="dropdown-item active" data-mode="waves">Auto: Waves</div>
                 <div class="dropdown-item" data-mode="hologram">Auto: Hologram</div>
                 <div class="dropdown-item" data-mode="galaxy">Auto: Galaxy</div>
                 <div class="dropdown-item" data-mode="blackhole">Auto: Black Hole</div>
                 <div class="dropdown-item" data-mode="rain">Auto: Rain</div>
+                <div class="dropdown-item" data-mode="nature">Auto: Nature</div>
+                <div class="dropdown-item" data-mode="mixer">Auto: Mixer (Audio Visualizer)</div>
+                <div class="dropdown-item manual-item" data-mode="manual">Hand Interaction (Camera)</div>
             </div>
         </div>
         
@@ -565,8 +581,8 @@
         </div>
 
         <div id="status-card">
-            <span class="spinner" id="spinner"></span>
-            <span id="status">Loading camera and AI model...</span>
+            <span class="spinner" id="spinner" style="display:none;"></span>
+            <span id="status">Select Hand Interaction to enable Camera</span>
         </div>
     </div>
 
@@ -619,6 +635,25 @@
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
+
+        // --- Central Earth Sphere (Mixer Mode) ---
+        const earthGeo = new THREE.SphereGeometry(1.8, 32, 32);
+        const earthMat = new THREE.MeshPhongMaterial({
+            color: 0x0033aa, // Màu đại dương
+            emissive: 0x001133,
+            shininess: 50,
+            wireframe: true // Chế độ lưới để trông công nghệ / viễn tưởng hơn
+        });
+        const centralEarth = new THREE.Mesh(earthGeo, earthMat);
+        centralEarth.visible = false;
+        scene.add(centralEarth);
+
+        // Đèn chiếu sáng cho Trái Đất
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+        const pointLight = new THREE.PointLight(0xbfff00, 1.5, 100);
+        pointLight.position.set(5, 5, 5);
+        scene.add(pointLight);
 
         // --- Particle System ---
         const particleCount = 12000; // Increased for better detail
@@ -675,7 +710,7 @@
             for (let i = 0; i < particleCount; i++) {
                 const pixel = validPixels[Math.floor(Math.random() * validPixels.length)];
                 
-                const scale = 4.0 / Math.max(boxWidth, boxHeight);
+                const scale = 2.5 / Math.max(boxWidth, boxHeight); // Thu nhỏ kích thước logo để vừa với quả cầu mới
                 const normalizedX = (pixel.x - centerX) * scale;
                 const normalizedY = -(pixel.y - centerY) * scale;
                 
@@ -783,11 +818,11 @@
         let targetExpansion = 0;
 
         // --- Auto Mode State ---
-        let autoModeActive = false;
+        let autoModeActive = true;
         let autoModeTimer = 0;
         let currentPatternIndex = 0;
-        const patterns = ['waves', 'hologram', 'galaxy', 'blackhole', 'rain'];
-        const patternNames = ['Waves', 'Hologram', 'Galaxy', 'Black Hole', 'Rain'];
+        const patterns = ['waves', 'hologram', 'galaxy', 'blackhole', 'rain', 'nature', 'mixer'];
+        const patternNames = ['Waves', 'Hologram', 'Galaxy', 'Black Hole', 'Rain', 'Nature', 'Mixer'];
         const bgmPlayer = document.getElementById('bgmPlayer');
         
         const patternAudios = {
@@ -796,8 +831,31 @@
             'hologram': 'bgm/hologram.mp3',
             'galaxy': 'bgm/galaxy.mp3',
             'blackhole': 'bgm/blackhole.mp3',
-            'rain': 'bgm/rain.mp3'
+            'rain': 'bgm/rain.mp3',
+            'nature': 'bgm/nature.mp3',
+            'mixer': 'bgm/mac_dinh.mp3'
         };
+
+        // --- Web Audio API (Mixer) ---
+        let audioContext = null;
+        let analyser = null;
+        let dataArray = null;
+
+        function initAudioAnalyzer() {
+            if (audioContext) return; // Đã khởi tạo
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                const source = audioContext.createMediaElementSource(bgmPlayer);
+                source.connect(analyser);
+                analyser.connect(audioContext.destination);
+                analyser.fftSize = 256; // Cho ra 128 dải tần
+                const bufferLength = analyser.frequencyBinCount;
+                dataArray = new Uint8Array(bufferLength);
+            } catch (e) {
+                console.warn("AudioContext setup failed:", e);
+            }
+        }
 
         let targetVolume = 1;
         const volumeSlider = document.getElementById('volumeSlider');
@@ -822,7 +880,12 @@
                     bgmPlayer.src = nextSrc;
                     bgmPlayer.volume = 0;
                     
-                    bgmPlayer.play().catch(e => console.log("BGM Error or Not Found:", e.message));
+                    bgmPlayer.play().then(() => {
+                        initAudioAnalyzer();
+                        if (audioContext && audioContext.state === 'suspended') {
+                            audioContext.resume();
+                        }
+                    }).catch(e => console.log("BGM Error or Not Found:", e.message));
                     
                     const fadeIn = setInterval(() => {
                         if (vol < targetVolume - 0.05) {
@@ -861,15 +924,16 @@
                 
                 if (mode === 'manual') {
                     autoModeActive = false;
-                    modeSelectBtn.innerHTML = 'Mode: Manual <span>▼</span>';
+                    modeSelectBtn.innerHTML = 'Mode: Hand Interaction <span>▼</span>';
                     playBGM('manual');
+                    initCameraAndAI();
                 } else {
                     autoModeActive = true;
                     currentPatternIndex = patterns.indexOf(mode);
                     autoModeTimer = 0; 
                     
                     const patternName = patternNames[currentPatternIndex];
-                    modeSelectBtn.innerHTML = `Mode: ${patternName} <span>▼</span>`;
+                    modeSelectBtn.innerHTML = `Mode: Auto: ${patternName} <span>▼</span>`;
                     
                     playBGM(mode);
                 }
@@ -1068,22 +1132,9 @@
 
             // 3. Face Gestures
             if (!detectedThisFrame && face) {
-                const getEAR = (pTop, pBot, pLeft, pRight) => {
-                    const vert = getDistance(pTop, pBot);
-                    const horiz = getDistance(pLeft, pRight);
-                    return vert / horiz;
-                };
-                
-                const leftEAR = getEAR(face[159], face[145], face[33], face[133]);
-                const rightEAR = getEAR(face[386], face[374], face[362], face[263]);
-                
-                if (leftEAR < 0.18 && rightEAR < 0.18) {
-                    detectedThisFrame = "Goodnight Chad";
-                } else {
-                    const mouthWidth = getDistance(face[61], face[291]);
-                    if (mouthWidth < 0.05) { 
-                        detectedThisFrame = "I love you";
-                    }
+                const mouthWidth = getDistance(face[61], face[291]);
+                if (mouthWidth < 0.05) { 
+                    detectedThisFrame = "I love you";
                 }
             }
 
@@ -1144,40 +1195,53 @@
             }
         }
 
-        const holistic = new Holistic({locateFile: (file) => {
-            return `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${file}`;
-        }});
-        
-        holistic.setOptions({
-            modelComplexity: 0,
-            smoothLandmarks: true,
-            enableSegmentation: false,
-            smoothSegmentation: true,
-            refineFaceLandmarks: true,
-            minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5
-        });
-        
-        holistic.onResults(onResults);
+        let cameraInitialized = false;
 
-        const cameraUtils = new Camera(videoElement, {
-            onFrame: async () => {
-                await holistic.send({image: videoElement});
-            },
-            width: 640,
-            height: 480
-        });
+        function initCameraAndAI() {
+            if (cameraInitialized) return;
+            cameraInitialized = true;
+            
+            spinner.style.display = 'inline-block';
+            statusEl.innerText = "Initializing Camera and AI...";
 
-        // Start camera
-        cameraUtils.start()
-            .then(() => {
-                statusEl.innerText = "Camera started. Initializing model...";
-            })
-            .catch((err) => {
-                spinner.style.display = 'none';
-                statusEl.innerText = "Error: Cannot access camera. Please grant permission.";
-                console.error(err);
+            const holistic = new Holistic({locateFile: (file) => {
+                return `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${file}`;
+            }});
+            
+            holistic.setOptions({
+                modelComplexity: 0,
+                smoothLandmarks: true,
+                enableSegmentation: false,
+                smoothSegmentation: true,
+                refineFaceLandmarks: true,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
             });
+            
+            holistic.onResults(onResults);
+
+            const cameraUtils = new Camera(videoElement, {
+                onFrame: async () => {
+                    await holistic.send({image: videoElement});
+                },
+                width: 640,
+                height: 480
+            });
+
+            // Start camera
+            cameraUtils.start()
+                .then(() => {
+                    statusEl.innerText = "Camera started. AI Ready.";
+                    setTimeout(() => {
+                        if (!autoModeActive) statusEl.innerText = "Hand Interaction Active.";
+                    }, 2000);
+                })
+                .catch((err) => {
+                    spinner.style.display = 'none';
+                    statusEl.innerText = "Error: Cannot access camera. Please grant permission.";
+                    console.error(err);
+                });
+        }
 
         // --- Animation Loop ---
         const clock = new THREE.Clock();
@@ -1192,6 +1256,24 @@
 
             const positionAttribute = geometry.attributes.position;
             const posArray = positionAttribute.array;
+
+            // Xử lý hiển thị Quả Cầu Trái Đất ở chế độ Mixer
+            const pattern = patterns[currentPatternIndex];
+            if (pattern === 'mixer') {
+                centralEarth.visible = true;
+                centralEarth.rotation.y += 0.005; // Xoay như Trái Đất
+                centralEarth.rotation.x += 0.002;
+                
+                // Trái Đất giật theo nhạc Bass
+                let bassFreq = 0;
+                if (typeof dataArray !== 'undefined' && dataArray && dataArray.length > 0) {
+                    bassFreq = dataArray[2] || 0;
+                }
+                const scaleBump = 1 + (bassFreq / 255) * 0.15;
+                centralEarth.scale.set(scaleBump, scaleBump, scaleBump);
+            } else {
+                centralEarth.visible = false;
+            }
 
             if (autoModeActive) {
                 autoModeTimer += delta;
@@ -1261,6 +1343,56 @@
                             ptx = randx * 1.5;
                             ptz = randz * 1.5;
                             pty = 5 - ((elapsedTime * 4 + i * 0.02) % 10);
+                        } else if (pattern === 'nature') {
+                            // Mô phỏng đom đóm trong gió
+                            const windX = elapsedTime * 0.8;
+                            const windY = elapsedTime * 1.2;
+                            ptx = ((randx * 2 + windX + Math.sin(elapsedTime * 2 + randy)) % 20 + 20) % 20 - 10;
+                            pty = ((randy * 2 + windY + Math.cos(elapsedTime * 1.5 + randx)) % 20 + 20) % 20 - 10;
+                            ptz = ((randz * 2 + Math.sin(elapsedTime * 2 + randy)) % 20 + 20) % 20 - 10;
+                        } else if (pattern === 'mixer') {
+                            // Cập nhật dữ liệu sóng âm
+                            if (analyser && !bgmPlayer.paused && i === 0) {
+                                analyser.getByteFrequencyData(dataArray);
+                            }
+
+                            // Vành đai thiên hà bao quanh Trái Đất (Saturn Ring)
+                            const ringParticles = 3000;
+                            
+                            if (i < ringParticles) {
+                                // Lấy dữ liệu âm thanh
+                                let freqValue = 0;
+                                if (dataArray && dataArray.length > 0) {
+                                    const binIndex = Math.floor((i / ringParticles) * 64);
+                                    freqValue = dataArray[binIndex] || 0;
+                                }
+                                
+                                const bump = (freqValue / 255);
+                                
+                                // Bán kính vành đai: Phân bổ từ 2.2 đến 4.5, rung lên khi có Bass
+                                const spread = Math.abs(randx % 2.5);
+                                const ringRadius = 2.2 + spread + bump * 0.5;
+                                
+                                // Góc quay xung quanh trục Y, kết hợp chuyển động trôi lững lờ
+                                const ringAngle = (i / ringParticles) * Math.PI * 2 + elapsedTime * 0.4 + randz * 0.2;
+                                
+                                // Tính toán toạ độ phẳng (trục Y là độ dày mỏng của dải thiên hà)
+                                const baseX = Math.cos(ringAngle) * ringRadius;
+                                const baseZ = Math.sin(ringAngle) * ringRadius;
+                                const baseY = randy * 0.08 * (1 + bump * 4); // Dải thiên hà dày lên khi nhạc đập
+                                
+                                // Nghiêng vành đai khoảng 25 độ (0.45 radian) quanh trục X để góc nhìn đẹp hơn
+                                const tilt = 0.45;
+                                ptx = baseX;
+                                pty = baseY * Math.cos(tilt) - baseZ * Math.sin(tilt);
+                                ptz = baseY * Math.sin(tilt) + baseZ * Math.cos(tilt);
+                                
+                            } else {
+                                // Ẩn toàn bộ 9,000 hạt thừa còn lại
+                                ptx = 0;
+                                pty = 0;
+                                ptz = -1000;
+                            }
                         }
 
                         // Apply smooth transitions using easeInOut
